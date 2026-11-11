@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#081914"><title>إدارة سمرة</title>
+<style>
+:root{color-scheme:dark;--bg:#07130f;--panel:#10231b;--line:#294436;--gold:#e9bd61;--muted:#9bb0a4}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#173729,#07130f 55%);color:#f5f1e8;font-family:Tahoma,Arial,sans-serif}
+main{max-width:1100px;margin:auto;padding:22px}.brand{color:var(--gold);font-size:26px;font-weight:bold}.sub{color:var(--muted);margin:8px 0 22px}
+.panel{background:#10231beF;border:1px solid var(--line);border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 12px 35px #0005}
+h2{font-size:18px;margin:0 0 14px;color:var(--gold)}input,textarea,select{width:100%;background:#091710;color:white;border:1px solid var(--line);border-radius:10px;padding:12px;margin:6px 0;font:inherit}
+button{border:0;border-radius:10px;background:var(--gold);color:#172117;padding:11px 17px;font-weight:bold;font:inherit;cursor:pointer;margin:5px 0}
+button.secondary{background:#254334;color:white}button.danger{background:#7d3030;color:white}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.hidden{display:none!important}
+.msg{color:var(--muted);white-space:pre-wrap;margin:10px 0}.item{border:1px solid var(--line);padding:12px;border-radius:12px;margin:8px 0;overflow-wrap:anywhere}
+small{color:var(--muted)}.tabs{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}
+#who{color:#b7d4c1}.pill{display:inline-block;padding:4px 8px;border-radius:20px;background:#284535;color:#cde5d4;font-size:12px}
+</style>
+</head>
+<body><main>
+<div class="brand">♠ سَمْرَة</div><div class="sub">لوحة الإدارة المستقلة</div>
+<section class="panel" id="login">
+<h2>تسجيل دخول الإدارة</h2>
+<input id="email" type="email" placeholder="البريد الإلكتروني">
+<input id="pass" type="password" placeholder="كلمة المرور">
+<button id="loginBtn">دخول</button><div class="msg" id="loginMsg"></div>
+</section>
+<section id="app" class="hidden">
+<div class="panel"><div id="who"></div><button class="secondary" id="refresh">تحديث البيانات</button><button class="danger" id="logout">تسجيل خروج</button></div>
+<div class="tabs">
+<button class="secondary" data-tab="players">الحظر والتحذيرات</button>
+<button class="secondary" data-tab="announce">رسالة عامة</button>
+<button class="secondary" data-tab="admins" id="adminsTab">المشرفون</button>
+<button class="secondary" data-tab="logs">سجل الإجراءات</button>
+</div>
+<div id="players" class="tab panel">
+<h2>حظر لاعب / فك الحظر</h2><div class="grid">
+<div><input id="puid" placeholder="Firebase UID للاعب"><input id="pname" placeholder="اسم اللاعب"><input id="reason" placeholder="سبب الحظر"><button id="banBtn">حظر اللاعب</button></div>
+<div><input id="unbanUid" placeholder="Firebase UID لفك الحظر"><button class="danger" id="unbanBtn">فك الحظر</button></div>
+<div><input id="warnUid" placeholder="Firebase UID للتحذير"><input id="warnName" placeholder="اسم اللاعب"><textarea id="warnText" placeholder="نص التحذير"></textarea><button id="warnBtn">إرسال التحذير</button></div>
+</div><h2>الحالات المسجلة</h2><div id="bansList"></div><h2>التحذيرات</h2><div id="warningsList"></div>
+</div>
+<div id="announce" class="tab panel hidden"><h2>إرسال رسالة عامة للاعبين</h2><textarea id="announcement" placeholder="اكتب التنبيه أو الرسالة"></textarea><button id="announceBtn">نشر الرسالة</button><div id="annList"></div></div>
+<div id="admins" class="tab panel hidden"><h2>إضافة مشرف</h2><input id="adminUid" placeholder="Firebase UID للمشرف"><input id="adminName" placeholder="اسم المشرف">
+<label><input type="checkbox" id="canBan" checked> السماح بالحظر وفك الحظر</label>
+<label><input type="checkbox" id="canWarn" checked> السماح بالتحذير</label>
+<label><input type="checkbox" id="canAnnounce"> السماح بالرسائل العامة</label>
+<button id="addAdminBtn">إضافة المشرف</button><h2>المشرفون الحاليون</h2><div id="adminsList"></div></div>
+<div id="logs" class="tab panel hidden"><h2>سجل الإجراءات</h2><div id="logsList"></div></div>
+<div class="msg" id="appMsg"></div>
+</section>
+</main>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+const FIREBASE_CONFIG={apiKey:"AIzaSyAuZSocKyO_1pS1Kx0qIp4maRYbguG8eT4",authDomain:"samrah-a58c7.firebaseapp.com",projectId:"samrah-a58c7",storageBucket:"samrah-a58c7.firebasestorage.app",messagingSenderId:"489155024260",appId:"1:489155024260:web:2dc87415b4f0869af879d1"};
+const SUPABASE_URL="https://ecraurncstbgeowhtmvi.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_2Y9a1dlSHU1nszWMVD7RWg_fYsFNGAo";
+const FUNCTION_URL=SUPABASE_URL+"/functions/v1/samrah-admin";
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth=firebase.auth();
+const $=id=>document.getElementById(id);
+let overview=null, me=null;
+function message(t){$("appMsg").textContent=t||""}
+async function call(action,data={}){
+ const user=auth.currentUser;if(!user)throw new Error("انتهت الجلسة، سجّل الدخول مجدداً");
+ const token=await user.getIdToken(true);
+ const res=await fetch(FUNCTION_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token,"apikey":SUPABASE_ANON_KEY},body:JSON.stringify({action,...data})});
+ const out=await res.json();if(!res.ok)throw new Error(out.error||"فشل الطلب");return out;
+}
+function safe(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function card(x,extra=""){return `<div class="item"><b>${safe(x.player_name||x.display_name||x.message||x.action||x.firebase_uid||"—")}</b><br><small>${safe(x.firebase_uid||x.actor_uid||x.created_by||"")} · ${safe(x.created_at||"")}</small>${x.reason?`<p>${safe(x.reason)}</p>`:""}${x.message&&x.player_name?`<p>${safe(x.message)}</p>`:""}${extra}</div>`}
+async function refresh(){
+ message("جاري تحميل البيانات…");overview=await call("overview");me=overview.me;
+ $("who").innerHTML=`تم الدخول — <b>${safe(me.uid)}</b> <span class="pill">${me.role==="owner"?"المدير الرئيسي":"مشرف"}</span>`;
+ $("adminsTab").classList.toggle("hidden",me.role!=="owner");
+ $("admins").classList.toggle("hidden",me.role!=="owner");
+ $("bansList").innerHTML=overview.bans.map(x=>card(x,`<span class="pill">${x.active?"محظور":"مفكوك الحظر"}</span>`)).join("")||"لا توجد حالات.";
+ $("warningsList").innerHTML=overview.warnings.map(x=>card(x)).join("")||"لا توجد تحذيرات.";
+ $("annList").innerHTML=overview.announcements.map(x=>card(x)).join("");
+ $("adminsList").innerHTML=overview.admins.map(x=>card(x,`<span class="pill">${safe(x.role)}</span>${x.role==="moderator"?`<button class="danger" onclick="removeAdmin('${safe(x.firebase_uid)}')">حذف المشرف</button>`:""} `)).join("");
+ $("logsList").innerHTML=overview.logs.map(x=>card(x)).join("")||"لا توجد إجراءات.";
+ $("login").classList.add("hidden");$("app").classList.remove("hidden");message("");
+}
+async function act(fn){try{message("جارٍ التنفيذ…");await fn();await refresh();message("تم بنجاح");}catch(e){message(e.message)}}
+$("loginBtn").onclick=async()=>{try{ $("loginMsg").textContent="جاري الدخول…";await auth.signInWithEmailAndPassword($("email").value.trim(),$("pass").value);await refresh();}catch(e){$("loginMsg").textContent=e.message}};
+$("logout").onclick=()=>auth.signOut().then(()=>location.reload());
+$("refresh").onclick=()=>act(async()=>{await refresh()});
+document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.add("hidden"));$(b.dataset.tab).classList.remove("hidden")});
+$("banBtn").onclick=()=>act(()=>call("ban",{uid:$("puid").value.trim(),name:$("pname").value.trim(),reason:$("reason").value.trim()}));
+$("unbanBtn").onclick=()=>act(()=>call("unban",{uid:$("unbanUid").value.trim()}));
+$("warnBtn").onclick=()=>act(()=>call("warn",{uid:$("warnUid").value.trim(),name:$("warnName").value.trim(),message:$("warnText").value.trim()}));
+$("announceBtn").onclick=()=>act(()=>call("announce",{message:$("announcement").value.trim()}));
+$("addAdminBtn").onclick=()=>act(()=>call("add_admin",{uid:$("adminUid").value.trim(),name:$("adminName").value.trim(),can_ban:$("canBan").checked,can_warn:$("canWarn").checked,can_announce:$("canAnnounce").checked}));
+window.removeAdmin=uid=>act(()=>call("remove_admin",{uid}));
+auth.onAuthStateChanged(async user=>{if(user){try{await refresh()}catch(e){$("loginMsg").textContent=e.message;await auth.signOut()}}});
+</script></body></html>
